@@ -1,0 +1,274 @@
+-- R0 BUSTER V11 ULTRA UI | SUPER NEST GOD | MODERN GLASS | TABS | SLIDE HISTORY | PERSIST PLAY | SMALL
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local LocalPlayer = Players.LocalPlayer
+
+local gameName = "Unknown"
+pcall(function() gameName = MarketplaceService:GetProductInfo(game.PlaceId).Name end)
+if #gameName > 18 then gameName = gameName:sub(1,18)..".." end
+local isLite = gameName:lower():find("studio") or gameName:lower():find("lite") or RunService:IsStudio()
+local GOD_MODE = isLite and true or false
+
+getgenv().R0_HISTORY = getgenv().R0_HISTORY or {}
+getgenv().R0_KEY = getgenv().R0_KEY or ""
+local KEY_FILE = "R0_BUSTER_KEY.txt"
+local HISTORY_FILE = "R0_BUSTER_HISTORY.json"
+
+local function saveKey(k) getgenv().R0_KEY=k if writefile then pcall(function() writefile(KEY_FILE,k) end) end end
+local function loadKey() if getgenv().R0_KEY~="" then return getgenv().R0_KEY end if isfile and isfile(KEY_FILE) then local ok,d=pcall(function() return readfile(KEY_FILE) end) if ok and d~="" then getgenv().R0_KEY=d return d end end return "" end
+local function saveHistory() pcall(function() if writefile then writefile(HISTORY_FILE, HttpService:JSONEncode(getgenv().R0_HISTORY)) end end) end
+local function loadHistory() if #getgenv().R0_HISTORY>0 then return getgenv().R0_HISTORY end if isfile and isfile(HISTORY_FILE) then local ok,d=pcall(function() return readfile(HISTORY_FILE) end) if ok and d then local ok2,j=pcall(function() return HttpService:JSONDecode(d) end) if ok2 and j then getgenv().R0_HISTORY=j return j end end end return {} end
+
+local function MakeDraggable(frame, handle)
+    local dragging, dragInput, dragStart, startPos
+    local h=handle or frame
+    h.InputBegan:Connect(function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+            dragging=true dragStart=input.Position startPos=frame.Position
+            input.Changed:Connect(function() if input.UserInputState==Enum.UserInputState.End then dragging=false end end)
+        end
+    end)
+    h.InputChanged:Connect(function(input) if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then dragInput=input end end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input==dragInput then
+            local delta=input.Position-dragStart
+            frame.Position=UDim2.new(startPos.X.Scale, startPos.X.Offset+delta.X, startPos.Y.Scale, startPos.Y.Offset+delta.Y)
+        end
+    end)
+end
+
+local keywords={["and"]=true,["break"]=true,["do"]=true,["else"]=true,["elseif"]=true,["end"]=true,["false"]=true,["for"]=true,["function"]=true,["if"]=true,["in"]=true,["local"]=true,["nil"]=true,["not"]=true,["or"]=true,["repeat"]=true,["return"]=true,["then"]=true,["true"]=true,["until"]=true,["while"]=true}
+local builtins={["game"]=true,["workspace"]=true,["script"]=true,["math"]=true,["string"]=true,["table"]=true,["task"]=true,["wait"]=true,["print"]=true,["Instance"]=true,["StarterGui"]=true,["ServerScriptService"]=true,["ReplicatedStorage"]=true,["Lighting"]=true,["Players"]=true}
+local function escapeRich(s) return s:gsub("&","&amp;"):gsub("<","&lt;"):gsub(">","&gt;") end
+local function highlightLua(code)
+    local ok,res=pcall(function()
+        if code=="" then return "" end
+        local prot={}; local c=0
+        local function addProt(t,col) c+=1; local k="##P"..c.."##"; prot[k]='<font color="'..col..'">'..escapeRich(t)..'</font>'; return k end
+        code=code:gsub("%-%-%[%[.-%]%]", function(m) return addProt(m,"#6A9955") end)
+        code=code:gsub("%-%-[^\n]*", function(m) return addProt(m,"#6A9955") end)
+        code=code:gsub("%[%[.-%]%]", function(m) return addProt(m,"#CE9178") end)
+        code=code:gsub('%b""', function(m) return addProt(m,"#CE9178") end)
+        code=code:gsub("%b''", function(m) return addProt(m,"#CE9178") end)
+        code=escapeRich(code)
+        code=code:gsub("%f[%d]%d+%.?%d*", function(n) return '<font color="#B5CEA8">'..n..'</font>' end)
+        code=code:gsub("%f[%a_]([%a_][%w_]*)%f[^%w_]", function(w)
+            if keywords[w] then return '<font color="#569CD6">'..w..'</font>' end
+            if builtins[w] then return '<font color="#4EC9B0">'..w..'</font>' end
+            return w
+        end)
+        for k,v in pairs(prot) do code=code:gsub(k,function() return v end) end
+        return code
+    end)
+    if ok then return res else return escapeRich(code) end
+end
+
+-- BRAIN
+local MODEL = "meta-llama/llama-3.3-70b-instruct"
+local url = "https://openrouter.ai/api/v1/chat/completions"
+local history = {{
+    role="system",
+    content=string.format([[
+You are R0-BUSTER V11 ULTRA SMART NEST IQ 9999999 FORGE GOD.
+Game="%s" User=%s GOD=%s
+GOD WHEN STUDIO LITE: You CAN DO ANYTHING. Map->Workspace, UI->StarterGui+PlayerGui, Script->ServerScriptService/ReplicatedStorage/StarterPack. Full games in one prompt. Never say can't.
+Format: Hello here's code -------- ```lua CODE ``` guide 1,2,3
+]], gameName, LocalPlayer.Name, tostring(GOD_MODE))
+}}
+local function getRequest() return (syn and syn.request) or (fluxus and fluxus.request) or request or http_request or (http and http.request) end
+
+-- PARENT + PERSIST
+local parentGui
+pcall(function() if gethui then parentGui=gethui() else parentGui=CoreGui end end)
+if not parentGui then parentGui=LocalPlayer:WaitForChild("PlayerGui") end
+if parentGui:FindFirstChild("R0_BUSTER_AI") then parentGui:FindFirstChild("R0_BUSTER_AI"):Destroy() end
+if parentGui:FindFirstChild("R0_TOGGLE") then parentGui:FindFirstChild("R0_TOGGLE"):Destroy() end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name="R0_BUSTER_AI"; ScreenGui.ResetOnSpawn=false; ScreenGui.IgnoreGuiInset=true; ScreenGui.Parent=parentGui
+local ToggleGui = Instance.new("ScreenGui")
+ToggleGui.Name="R0_TOGGLE"; ToggleGui.ResetOnSpawn=false; ToggleGui.IgnoreGuiInset=true; ToggleGui.Parent=parentGui
+
+-- TOGGLE BUTTON - ULTRA MODERN
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size=UDim2.new(0,50,0,50); ToggleBtn.Position=UDim2.new(0,12,0.5,-25)
+ToggleBtn.Text="R0"; ToggleBtn.BackgroundColor3=Color3.fromRGB(20,20,26); ToggleBtn.TextColor3=Color3.new(1,1,1); ToggleBtn.Font=Enum.Font.GothamBold; ToggleBtn.TextSize=15; ToggleBtn.Parent=ToggleGui
+Instance.new("UICorner",ToggleBtn).CornerRadius=UDim.new(1,0)
+local TStroke=Instance.new("UIStroke",ToggleBtn); TStroke.Color=GOD_MODE and Color3.fromRGB(255,60,60) or Color3.fromRGB(130,90,255); TStroke.Thickness=2
+local TGrad=Instance.new("UIGradient",ToggleBtn); TGrad.Color=ColorSequence.new{ColorSequenceKeypoint.new(0,Color3.fromRGB(130,90,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,60,60))}; TGrad.Rotation=90
+MakeDraggable(ToggleBtn,ToggleBtn)
+
+-- MAIN - GLASS ULTRA UI
+local Main = Instance.new("Frame")
+Main.Size=UDim2.new(0,420,0,500); Main.Position=UDim2.new(0.5,-210,0.5,-250)
+Main.BackgroundColor3=Color3.fromRGB(18,18,22); Main.Parent=ScreenGui
+Instance.new("UICorner",Main).CornerRadius=UDim.new(0,14)
+local MainStroke=Instance.new("UIStroke",Main); MainStroke.Color=Color3.fromRGB(60,60,80); MainStroke.Thickness=1
+local MainShadow=Instance.new("Frame"); MainShadow.Size=UDim2.new(1,0,1,0); MainShadow.Position=UDim2.new(0,0,0,0); MainShadow.BackgroundColor3=Color3.fromRGB(0,0,0); MainShadow.BackgroundTransparency=0.6; MainShadow.ZIndex=-1; MainShadow.Parent=Main
+Instance.new("UICorner",MainShadow).CornerRadius=UDim.new(0,14)
+
+local TitleBar = Instance.new("Frame")
+TitleBar.Size=UDim2.new(1,0,0,36); TitleBar.BackgroundColor3=Color3.fromRGB(26,26,32); TitleBar.Parent=Main
+Instance.new("UICorner",TitleBar).CornerRadius=UDim.new(0,14)
+local TitleFix=Instance.new("Frame"); TitleFix.Size=UDim2.new(1,0,0,10); TitleFix.Position=UDim2.new(0,0,1,-10); TitleFix.BackgroundColor3=TitleBar.BackgroundColor3; TitleFix.BorderSizePixel=0; TitleFix.Parent=TitleBar
+local TitleGrad=Instance.new("UIGradient",TitleBar); TitleGrad.Color=ColorSequence.new{ColorSequenceKeypoint.new(0,Color3.fromRGB(40,30,60)),ColorSequenceKeypoint.new(1,Color3.fromRGB(60,20,20))}; TitleGrad.Rotation=0
+
+local Title = Instance.new("TextLabel")
+Title.Size=UDim2.new(1,-100,1,0); Title.Position=UDim2.new(0,14,0,0)
+Title.BackgroundTransparency=1; Title.Text= GOD_MODE and "● GOD NEST V11 • "..gameName or "● R0 NEST V11 • "..gameName
+Title.TextColor3=Color3.new(1,1,1); Title.Font=Enum.Font.GothamBold; Title.TextSize=11; Title.TextXAlignment=Enum.TextXAlignment.Left; Title.Parent=TitleBar
+
+local function makeTopBtn(txt,pos,col)
+    local b=Instance.new("TextButton")
+    b.Size=UDim2.new(0,26,0,26); b.Position=UDim2.new(1,pos,0,5)
+    b.Text=txt; b.BackgroundColor3=col; b.TextColor3=Color3.new(1,1,1); b.Font=Enum.Font.GothamBold; b.TextSize=12; b.Parent=TitleBar
+    Instance.new("UICorner",b).CornerRadius=UDim.new(0,8)
+    return b
+end
+local MinBtn = makeTopBtn("—",-62,Color3.fromRGB(70,70,80))
+local CloseBtn = makeTopBtn("✕",-32,Color3.fromRGB(255,70,70))
+MakeDraggable(Main,TitleBar)
+
+-- TOP KEY BAR
+local KeyBar = Instance.new("Frame")
+KeyBar.Size=UDim2.new(1,-12,0,28); KeyBar.Position=UDim2.new(0,6,0,42)
+KeyBar.BackgroundColor3=Color3.fromRGB(28,28,36); KeyBar.Parent=Main
+Instance.new("UICorner",KeyBar).CornerRadius=UDim.new(0,8)
+local KeyIcon = Instance.new("TextLabel")
+KeyIcon.Size=UDim2.new(0,30,1,0); KeyIcon.BackgroundTransparency=1; KeyIcon.Text="🔑"; KeyIcon.TextSize=14; KeyIcon.Parent=KeyBar
+local KeyBox = Instance.new("TextBox")
+KeyBox.Size=UDim2.new(1,-36,1,0); KeyBox.Position=UDim2.new(0,30,0,0)
+KeyBox.PlaceholderText="sk-or-v1-... (auto saves)"; KeyBox.Text=loadKey(); KeyBox.BackgroundTransparency=1
+KeyBox.TextColor3=Color3.new(1,1,1); KeyBox.Font=Enum.Font.Code; KeyBox.TextSize=10; KeyBox.TextXAlignment=Enum.TextXAlignment.Left; KeyBox.ClearTextOnFocus=false; KeyBox.Parent=KeyBar
+
+-- PROMPT
+local PromptLabel = Instance.new("TextLabel")
+PromptLabel.Size=UDim2.new(1,-12,0,16); PromptLabel.Position=UDim2.new(0,6,0,76)
+PromptLabel.BackgroundTransparency=1; PromptLabel.Text="PROMPT - GOD MODE: build anything"; PromptLabel.TextColor3=Color3.fromRGB(140,140,160); PromptLabel.Font=Enum.Font.GothamBold; PromptLabel.TextSize=9; PromptLabel.TextXAlignment=Enum.TextXAlignment.Left; PromptLabel.Parent=Main
+
+local PromptBox = Instance.new("TextBox")
+PromptBox.Size=UDim2.new(1,-12,0,54); PromptBox.Position=UDim2.new(0,6,0,92)
+PromptBox.PlaceholderText="build full obby, city with roads, shop ui with coins..."; PromptBox.Text=""; PromptBox.BackgroundColor3=Color3.fromRGB(28,28,36); PromptBox.TextColor3=Color3.new(1,1,1); PromptBox.Font=Enum.Font.Gotham; PromptBox.TextSize=11; PromptBox.MultiLine=true; PromptBox.TextWrapped=true; PromptBox.TextXAlignment=Enum.TextXAlignment.Left; PromptBox.TextYAlignment=Enum.TextYAlignment.Top; PromptBox.ClearTextOnFocus=false; PromptBox.Parent=Main
+Instance.new("UICorner",PromptBox).CornerRadius=UDim.new(0,10)
+local PStroke=Instance.new("UIStroke",PromptBox); PStroke.Color=Color3.fromRGB(50,50,70); PStroke.Thickness=1
+
+-- ACTION ROW
+local function makeBtn(txt,pos,w,col)
+    local b=Instance.new("TextButton")
+    b.Size=UDim2.new(0,w,0,28); b.Position=UDim2.new(0,pos,0,152)
+    b.Text=txt; b.BackgroundColor3=col; b.TextColor3=Color3.new(1,1,1); b.Font=Enum.Font.GothamBold; b.TextSize=10; b.Parent=Main
+    Instance.new("UICorner",b).CornerRadius=UDim.new(0,8)
+    return b
+end
+local AskBtn = makeBtn("⚡ GOD FORGE",6,100,Color3.fromRGB(255,60,60))
+local ClearBtn = makeBtn("CLEAR",112,56,Color3.fromRGB(50,50,64))
+local HistBtn = makeBtn("◷ HISTORY",174,76,Color3.fromRGB(0,130,180))
+local SettingsBtn = makeBtn("⚙",256,28,Color3.fromRGB(60,60,80))
+
+local Status = Instance.new("TextLabel")
+Status.Size=UDim2.new(0,120,0,28); Status.Position=UDim2.new(1,-126,0,152)
+Status.BackgroundTransparency=1; Status.Text="GOD READY"; Status.TextColor3=Color3.fromRGB(255,120,120); Status.Font=Enum.Font.Gotham; Status.TextSize=9; Status.TextXAlignment=Enum.TextXAlignment.Right; Status.Parent=Main
+
+-- SPLIT VIEW - RESPONSE + CODE
+local function makePanelHeader(txt, pos)
+    local f=Instance.new("Frame"); f.Size=UDim2.new(0.5,-8,0,22); f.Position=UDim2.new(pos,0,0,186); f.BackgroundColor3=Color3.fromRGB(32,32,42); f.Parent=Main
+    Instance.new("UICorner",f).CornerRadius=UDim.new(0,8)
+    local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,-8,1,0); l.Position=UDim2.new(0,8,0,0); l.BackgroundTransparency=1; l.Text=txt; l.TextColor3=Color3.fromRGB(180,180,200); l.Font=Enum.Font.GothamBold; l.TextSize=9; l.TextXAlignment=Enum.TextXAlignment.Left; l.Parent=f
+    return f
+end
+makePanelHeader("💬 RESPONSE",0)
+makePanelHeader("📜 CODE",0.5)
+
+local OutFrame = Instance.new("Frame")
+OutFrame.Size=UDim2.new(0.5,-8,0,210); OutFrame.Position=UDim2.new(0,6,0,212)
+OutFrame.BackgroundColor3=Color3.fromRGB(24,24,30); OutFrame.Parent=Main
+Instance.new("UICorner",OutFrame).CornerRadius=UDim.new(0,10)
+
+local OutScroll = Instance.new("ScrollingFrame")
+OutScroll.Size=UDim2.new(1,-6,1,-6); OutScroll.Position=UDim2.new(0,3,0,3); OutScroll.BackgroundTransparency=1; OutScroll.CanvasSize=UDim2.new(0,0,0,0); OutScroll.ScrollBarThickness=2; OutScroll.Parent=OutFrame
+
+local OutLabel = Instance.new("TextLabel")
+OutLabel.Size=UDim2.new(1,-6,0,0); OutLabel.Position=UDim2.new(0,3,0,0); OutLabel.BackgroundTransparency=1; OutLabel.Text="V11 ULTRA READY - Modern UI, Slide History, Persist after Play"; OutLabel.TextColor3=Color3.fromRGB(220,220,255); OutLabel.Font=Enum.Font.Gotham; OutLabel.TextSize=10; OutLabel.TextWrapped=true; OutLabel.TextXAlignment=Enum.TextXAlignment.Left; OutLabel.TextYAlignment=Enum.TextYAlignment.Top; OutLabel.AutomaticSize=Enum.AutomaticSize.Y; OutLabel.Parent=OutScroll
+
+local CodeFrame = Instance.new("Frame")
+CodeFrame.Size=UDim2.new(0.5,-8,0,210); CodeFrame.Position=UDim2.new(0.5,2,0,212)
+CodeFrame.BackgroundColor3=Color3.fromRGB(14,14,18); CodeFrame.Parent=Main
+Instance.new("UICorner",CodeFrame).CornerRadius=UDim.new(0,10)
+
+local CodeScroll = Instance.new("ScrollingFrame")
+CodeScroll.Size=UDim2.new(1,-6,1,-6); CodeScroll.Position=UDim2.new(0,3,0,3); CodeScroll.BackgroundTransparency=1; CodeScroll.CanvasSize=UDim2.new(0,0,0,0); CodeScroll.ScrollBarThickness=2; CodeScroll.Parent=CodeFrame
+
+local HighlightLabel = Instance.new("TextLabel")
+HighlightLabel.Size=UDim2.new(1,-6,0,0); HighlightLabel.Position=UDim2.new(0,3,0,0); HighlightLabel.BackgroundTransparency=1; HighlightLabel.Text="-- code"; HighlightLabel.TextColor3=Color3.new(1,1,1); HighlightLabel.Font=Enum.Font.Code; HighlightLabel.TextSize=10; HighlightLabel.TextWrapped=true; HighlightLabel.TextXAlignment=Enum.TextXAlignment.Left; HighlightLabel.TextYAlignment=Enum.TextYAlignment.Top; HighlightLabel.RichText=true; HighlightLabel.AutomaticSize=Enum.AutomaticSize.Y; HighlightLabel.Parent=CodeScroll
+
+local CodeBox = Instance.new("TextBox")
+CodeBox.Size=UDim2.new(1,-6,0,0); CodeBox.Position=UDim2.new(0,3,0,0); CodeBox.BackgroundTransparency=1; CodeBox.Text="-- code"; CodeBox.TextColor3=Color3.new(1,1,1); CodeBox.Font=Enum.Font.Code; CodeBox.TextSize=10; CodeBox.TextWrapped=true; CodeBox.TextXAlignment=Enum.TextXAlignment.Left; CodeBox.TextYAlignment=Enum.TextYAlignment.Top; CodeBox.MultiLine=true; CodeBox.ClearTextOnFocus=false; CodeBox.TextTransparency=1; CodeBox.AutomaticSize=Enum.AutomaticSize.Y; CodeBox.Parent=CodeScroll
+
+local function ApplyHighlight()
+    pcall(function()
+        if CodeBox.Text=="" then HighlightLabel.Text="" return end
+        HighlightLabel.Text=highlightLua(CodeBox.Text)
+        OutScroll.CanvasSize=UDim2.new(0,0,0,OutLabel.TextBounds.Y+10)
+        CodeScroll.CanvasSize=UDim2.new(0,0,0,math.max(HighlightLabel.TextBounds.Y,CodeBox.TextBounds.Y)+20)
+    end)
+end
+CodeBox:GetPropertyChangedSignal("Text"):Connect(ApplyHighlight)
+CodeBox.Focused:Connect(function() HighlightLabel.Visible=false CodeBox.TextTransparency=0 end)
+CodeBox.FocusLost:Connect(function() HighlightLabel.Visible=true CodeBox.TextTransparency=1 ApplyHighlight() end)
+
+-- BOTTOM ACTIONS
+local function makeBottomBtn(txt,pos,w,col)
+    local b=Instance.new("TextButton")
+    b.Size=UDim2.new(0,w,0,32); b.Position=UDim2.new(0,pos,0,432)
+    b.Text=txt; b.BackgroundColor3=col; b.TextColor3=Color3.new(1,1,1); b.Font=Enum.Font.GothamBold; b.TextSize=11; b.Parent=Main
+    Instance.new("UICorner",b).CornerRadius=UDim.new(0,10)
+    return b
+end
+local CopyBtn = makeBottomBtn("📋 COPY CODE",6,200,Color3.fromRGB(50,50,70))
+local RunBtn = makeBottomBtn("🚀 GOD INJECT",214,200,Color3.fromRGB(255,60,60))
+
+-- HISTORY SLIDE PANEL
+local HistFrame = Instance.new("Frame")
+HistFrame.Size=UDim2.new(0,320,1,0); HistFrame.Position=UDim2.new(1,0,0,0); HistFrame.BackgroundColor3=Color3.fromRGB(22,22,28); HistFrame.Visible=false; HistFrame.Parent=Main
+Instance.new("UICorner",HistFrame).CornerRadius=UDim.new(0,12)
+local HistTitle = Instance.new("TextLabel")
+HistTitle.Size=UDim2.new(1,-40,0,36); HistTitle.Position=UDim2.new(0,12,0,0); HistTitle.BackgroundTransparency=1; HistTitle.Text="◷ HISTORY BROWSER"; HistTitle.TextColor3=Color3.new(1,1,1); HistTitle.Font=Enum.Font.GothamBold; HistTitle.TextSize=12; HistTitle.TextXAlignment=Enum.TextXAlignment.Left; HistTitle.Parent=HistFrame
+local HistClose = Instance.new("TextButton")
+HistClose.Size=UDim2.new(0,28,0,28); HistClose.Position=UDim2.new(1,-32,0,4); HistClose.Text="✕"; HistClose.BackgroundColor3=Color3.fromRGB(60,60,80); HistClose.TextColor3=Color3.new(1,1,1); HistClose.Font=Enum.Font.GothamBold; HistClose.TextSize=12; HistClose.Parent=HistFrame
+Instance.new("UICorner",HistClose).CornerRadius=UDim.new(0,8)
+local HistScroll = Instance.new("ScrollingFrame")
+HistScroll.Size=UDim2.new(1,-12,1,-44); HistScroll.Position=UDim2.new(0,6,0,38); HistScroll.BackgroundColor3=Color3.fromRGB(30,30,40); HistScroll.CanvasSize=UDim2.new(0,0,0,0); HistScroll.ScrollBarThickness=3; HistScroll.Parent=HistFrame
+Instance.new("UICorner",HistScroll).CornerRadius=UDim.new(0,10)
+local HistLayout=Instance.new("UIListLayout",HistScroll); HistLayout.Padding=UDim.new(0,6)
+
+local function RefreshHistory()
+    for _,v in ipairs(HistScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    local hist=loadHistory()
+    for i=#hist,1,-1 do
+        local data=hist[i]
+        local btn=Instance.new("TextButton"); btn.Size=UDim2.new(1,-8,0,52); btn.BackgroundColor3=Color3.fromRGB(38,38,52); btn.Text=""; btn.Parent=HistScroll
+        Instance.new("UICorner",btn).CornerRadius=UDim.new(0,10)
+        local t=Instance.new("TextLabel"); t.Size=UDim2.new(1,-10,1,-6); t.Position=UDim2.new(0,6,0,3); t.BackgroundTransparency=1
+        t.Text="🕒 "..(data.time or "").." | "..data.prompt:sub(1,45); t.TextColor3=Color3.new(1,1,1); t.Font=Enum.Font.Gotham; t.TextSize=9; t.TextWrapped=true; t.TextXAlignment=Enum.TextXAlignment.Left; t.Parent=btn
+        btn.MouseButton1Click:Connect(function() PromptBox.Text=data.prompt OutLabel.Text=data.response CodeBox.Text=data.code ApplyHighlight() TweenService:Create(HistFrame,TweenInfo.new(0.3),{Position=UDim2.new(1,0,0,0)}):Play() task.wait(0.3) HistFrame.Visible=false end)
+    end
+    HistScroll.CanvasSize=UDim2.new(0,0,0,HistLayout.AbsoluteContentSize.Y+10)
+end
+
+local function setStatus(t) Status.Text=tostring(t) end
+
+local function Think(prompt, apiKey, callback)
+    task.spawn(function()
+        local req=getRequest()
+        table.insert(history,{role="user",content=prompt})
+        local sendHist={}; table.insert(sendHist,history[1])
+        for i=math.max(2,#history-20),#history do table.insert(sendHist,history[i]) end
+        local body={model=MODEL, messages=sendHist}
+        local jsonBody=HttpService:JSONEncode(body)
+        local headers={["Aut
